@@ -1,7 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const base64js = require('base64-js');
-const { minify } = require('terser');
+const {minify} = require('terser');
 const btoa = require('btoa');
 const replaceString = require('replace-string');
 const lz4 = require('lz4');
@@ -10,12 +10,11 @@ const shared = require('./shared');
 
 const config = shared.readConfig();
 
-var externFiles = [
-];
+var externFiles = [];
 
 function inlineAssets(projectPath) {
     return new Promise((resolve, reject) => {
-        (async function() {
+        (async function () {
             var indexLocation = path.resolve(projectPath, "index.html");
             var indexContents = fs.readFileSync(indexLocation, 'utf-8');
 
@@ -58,45 +57,56 @@ function inlineAssets(projectPath) {
                 // so we don't need to Base64 the config.json and take another ~30% hit on file size
                 console.log("↪️ Adding app configure engine patch");
                 addPatchFile('one-page-app-configure-json.js');
+            })();
 
-                // MRAID support needs to include the mraid.js file and also force the app to use filltype NONE
-                // so that it fits in the canvas that is sized by the MRAID implementation on the app. This requires
-                // patching the CSS too to ensure it is placed correctly in the Window
-                if (config.one_page.mraid_support) {
-                    console.log("↪️ Adding mraid.js as a library");
-                    indexContents = indexContents.replace(
-                        '<script src="playcanvas-stable.min.js"></script>',
-                        '<script src="mraid.js"></script>\n    <script src="playcanvas-stable.min.js"></script>'
-                    );
+            // GPG changes.
+            // Wrap __start__.js with bootAd.
+            // Declare "game" variable.
+            (function () {
+                console.log("↪️ Wrapping __start__.js with bootAd");
+                var location = path.resolve(projectPath, "__start__.js");
+                var contents = fs.readFileSync(location, 'utf-8');
 
-                    console.log("↪️ Force fill type to be NONE in config.js");
-                    var configLocation = path.resolve(projectPath, "config.json");
-                    var configContents = fs.readFileSync(configLocation, 'utf-8');
-                    var configJson = JSON.parse(configContents);
-                    configJson.application_properties.fillMode = "NONE";
-                    fs.writeFileSync(configLocation, JSON.stringify(configJson));
+                contents = `function bootAd(width, height) {window.game = {};${contents}}`
 
-                    console.log("↪️ Patch CSS to fill the canvas to the body");
-                    var cssLocation = path.resolve(projectPath, "styles.css");
-                    var cssContents = fs.readFileSync(cssLocation, 'utf-8');
-                    var cssRegex = /#application-canvas\.fill-mode-NONE[\s\S]*?}/;
-                    cssContents = cssContents.replace(cssRegex, '#application-canvas.fill-mode-NONE { margin: 0; width: 100%; height: 100%; }');
-                    fs.writeFileSync(cssLocation, cssContents);
+                fs.writeFileSync(location, contents);
+            })();
 
-                    console.log("↪️ Adding mraid getMaxSize() call in pc.Application#resizeCanvas");
-                    addPatchFile('one-page-mraid-resize-canvas.js');
-                }
+            // Remove resize event listener with gp-sdk resize handler.
+            // Add all required methods for "window.game".
+            (function () {
+                const location = path.resolve(projectPath, "__start__.js");
+                let contents = fs.readFileSync(location, 'utf-8');
+
+                let regex = /window\.addEventListener\('resize', pcBootstrap.reflowHandler, false\);/
+                contents = contents.replace(regex, "")
+                regex = /window\.addEventListener\('orientationchange', pcBootstrap.reflowHandler, false\);/
+
+                contents = contents.replace(regex, "window.game.resize=pcBootstrap.reflowHandler;\nwindow.game.volume=function(value) {app.systems.sound.volume = value};\nwindow.game.showPopup=function() {};\nwindow.game.pause=function() {app.timeScale=0};\nwindow.game.resume=function() {app.timeScale=1};")
+
+                fs.writeFileSync(location, contents);
+            })();
+
+            // Change from appending canvas to body to append to <div id="creative">.
+            (function () {
+                const location = path.resolve(projectPath, "__start__.js");
+                let contents = fs.readFileSync(location, 'utf-8');
+
+                let regex = /document\.body\.appendChild\(canvas\);/
+                contents = contents.replace(regex, "document.querySelector(\"#creative\").appendChild(canvas);")
+
+                fs.writeFileSync(location, contents);
             })();
 
             // 1. Remove manifest.json and the reference in the index.html
-            (function() {
+            (function () {
                 console.log("↪️ Removing manifest.json");
                 var regex = / *<link rel="manifest" href="manifest\.json">\n/;
                 indexContents = indexContents.replace(regex, '');
             })();
 
             // 2. Remove __modules__.js and the reference in the index.html assuming we aren’t using modules for playable ads.
-            (function() {
+            (function () {
                 console.log("↪️ Removing __modules__.js");
 
                 var location = path.resolve(projectPath, "__start__.js");
@@ -104,27 +114,7 @@ function inlineAssets(projectPath) {
 
                 var regex = /if \(PRELOAD_MODULES.length > 0\).*configure\(\);\n    }/s;
 
-                if (config.one_page.mraid_support) {
-                    // // Adds the following code but minified
-                    // if (window.mraid) {
-                    //     if (mraid.getState() !== 'ready') {
-                    //         mraid.addEventListener('ready', configure);
-                    //     } else {
-                    //         configure();
-                    //     }
-                    // } else {
-                    //     configure();
-                    // }
-                    contents = contents.replace(regex, 'window.mraid&&"ready"!==mraid.getState()?mraid.addEventListener("ready",configure):configure();');
-                } else {
-                    contents = contents.replace(regex, 'configure();');
-                }
-
-                // // Adds the following code for better compatibility with ad networks on accessing the CSS styles
-                // // in configureCss()
-                // cssElement = document.createElement('style');
-                // cssElement.innerHTML =css;
-                // document.head.appendChild(cssElement);
+                contents = contents.replace(regex, 'configure();');
 
                 regex = /if \(document\.head\.querySelector\) {[\s\S]*?}/;
                 contents = contents.replace(regex, 'cssElement=document.createElement("style"),cssElement.innerHTML=css,document.head.appendChild(cssElement);');
@@ -132,9 +122,8 @@ function inlineAssets(projectPath) {
                 fs.writeFileSync(location, contents);
             })();
 
-
             // 3. Inline the styles.css contents into index.html in style header.
-            (function() {
+            (function () {
                 console.log("↪️ Inlining style.css into index.html");
 
                 var location = path.resolve(projectPath, "styles.css");
@@ -145,19 +134,18 @@ function inlineAssets(projectPath) {
                 var styleRegex = / *<link rel="stylesheet" type="text\/css" href="styles\.css">/;
                 indexContents = indexContents.replace(
                     styleRegex,
-                    '<style>\n'+ contents + '\n</style>');
+                    '<style>\n' + contents + '\n</style>');
             })();
 
             // 4. Open config.json and replace urls with base64 strings of the files with the correct mime type
             // 5. In config.json, remove hashes of all files that have an external URL
-            await (async function() {
+            await (async function () {
                 console.log("↪️ Base64 encode all urls in config.json");
 
                 var location = path.resolve(projectPath, "config.json");
                 var contents = fs.readFileSync(location, 'utf-8');
 
                 // Get the assets and Base64 all the files
-
                 var configJson = JSON.parse(contents);
                 var assets = configJson.assets;
 
@@ -200,32 +188,32 @@ function inlineAssets(projectPath) {
                     }
 
                     var mimeprefix = "data:application/octet-stream";
-                    switch(extension) {
+                    switch (extension) {
                         case "png":
                             mimeprefix = "data:image/png";
-                        break;
+                            break;
 
                         case "jpeg":
                         case "jpg":
                             mimeprefix = "data:image/jpeg";
-                        break;
+                            break;
 
                         case "json":
                             // The model and animation loader assumes that the base64 URL will be loaded as a binary
                             if ((asset.type !== 'model' && asset.type !== 'animation')) {
                                 mimeprefix = "data:application/json";
                             }
-                        break;
+                            break;
 
                         case "css":
                         case "html":
                         case "txt":
                             mimeprefix = "data:text/plain";
-                        break;
+                            break;
 
                         case "mp4":
                             mimeprefix = "data:video/mp4";
-                        break;
+                            break;
 
                         case "js":
                             // Check loading type as it may be added to the index.html (before/after engine) directly
@@ -241,7 +229,7 @@ function inlineAssets(projectPath) {
                             } else {
                                 fileContents = '';
                             }
-                        break;
+                            break;
                     }
 
                     var b64;
@@ -258,28 +246,27 @@ function inlineAssets(projectPath) {
 
                     // Remove the hash to prevent appending to the URL
                     asset.file.hash = "";
-                };
+                }
 
                 fs.writeFileSync(location, JSON.stringify(configJson));
             })();
 
             // 6. Remove __loading__.js.
-            (function() {
+            (function () {
                 console.log("↪️ Remove __loading__.js");
                 var regex = / *<script src="__loading__\.js"><\/script>\n/;
                 indexContents = indexContents.replace(regex, '');
             })();
 
-
             // 7. In __settings__.js, change the SCENE_PATH to a base64 string of the scene file.
             // 8. In __settings__.js, inline the JSON from the config.json file and assign it to CONFIG_FILENAME
-            (function() {
+            (function () {
                 console.log("↪️ Base64 encode the scene JSON and config JSON files");
 
                 var location = path.resolve(projectPath, "__settings__.js");
                 var contents = fs.readFileSync(location, 'utf-8');
 
-                var jsonToBase64 = function(regex) {
+                var jsonToBase64 = function (regex) {
                     var match = contents.match(regex);
 
                     // Assume match
@@ -290,7 +277,7 @@ function inlineAssets(projectPath) {
                     contents = replaceString(contents, match[1], "data:application/json;base64," + b64);
                 };
 
-                var assignJsonObject = function(regex) {
+                var assignJsonObject = function (regex) {
                     var match = contents.match(regex);
 
                     // Assume match
@@ -312,7 +299,7 @@ function inlineAssets(projectPath) {
 
             // Patch __start__.js to fix browser stretching on first load
             // https://github.com/playcanvas/engine/issues/2386#issuecomment-682053241
-            (function() {
+            (function () {
                 console.log("↪️ Patching __start__.js");
                 var location = path.resolve(projectPath, "__start__.js");
                 var contents = fs.readFileSync(location, 'utf-8');
@@ -332,16 +319,8 @@ function inlineAssets(projectPath) {
                 fs.writeFileSync(location, contents);
             })();
 
-            // Add Snapchat CTA code if needed
-            (function() {
-                if (config.one_page.snapchat_cta) {
-                    console.log("↪️ Adding Snapchat Ad CTA code");
-                    addLibraryFile('snapchat-cta.js');
-                }
-            })();
-
             // 9. Compress the engine file with lz4
-            (function() {
+            (function () {
                 if (config.one_page.compress_engine) {
                     addLibraryFile('lz4.js');
 
@@ -352,31 +331,20 @@ function inlineAssets(projectPath) {
 
                     fileContent = Buffer.from(compressedArray).toString('base64');
 
-                    // Add the decompression code wrapper and loader for the engine where '[code]' will be replaced with
-                    // the Base64 string
-                    // (function() {
-                    //     var lz4 = require('lz4');
-                    //     var Buffer = require('buffer').Buffer;
-                    //     var engineB64 = '[code]';
-                    //     var compressed = new Buffer(engineB64, 'base64');
-                    //     var engineContents = lz4.decode(compressed)
-                    //     var element = document.createElement('script');
-                    //     element.async = false;
-                    //     element.innerText = engineContents;
-                    //     document.head.insertBefore(element, document.head.children[3]);
-                    // })();
-
                     var wrapperCode = '!function(){var e=require("lz4"),r=require("buffer").Buffer,o=new r("[code]","base64"),c=e.decode(o);var a=document.createElement("script");a.async=!1,a.innerText=c,document.head.insertBefore(a,document.head.children[3])}();';
                     wrapperCode = wrapperCode.replace('[code]', fileContent);
                     fs.writeFileSync(filepath, wrapperCode);
                 }
             })();
 
-
             // 10. Replace references to all scripts in index.html with contents of those files.
             // 11. Replace playcanvas-stable.min.js in index.html with a base64 string of the file.
-            await (async function() {
+            await (async function () {
                 console.log("↪️ Inline JS scripts in index.html");
+
+                var lastLocation = path.resolve(projectPath, "last.js");
+                // Create empty "last.js" file.
+                fs.closeSync(fs.openSync(lastLocation, 'w'));
 
                 // If true, we will not embed the JS files
                 var externFilesConfig = config.one_page.extern_files;
@@ -387,6 +355,7 @@ function inlineAssets(projectPath) {
                     var url = element[1];
 
                     var filepath = path.resolve(projectPath, url);
+
                     if (!fs.existsSync(filepath)) {
                         continue;
                     }
@@ -400,11 +369,11 @@ function inlineAssets(projectPath) {
 
                     // If it is already minified then don't try to minify it again
                     if (!url.endsWith('.min.js')) {
-                        fileContent = (await minify(fileContent, { keep_fnames: true, ecma: '5' })).code;
+                        fileContent = (await minify(fileContent, {keep_fnames: true, ecma: '5'})).code;
                     }
 
-                    indexContents = replaceString(indexContents, element[0], '<script>' + fileContent + '</script>');
-                };
+                    fs.appendFileSync(lastLocation, fileContent)
+                }
             })();
 
             fs.writeFileSync(indexLocation, indexContents);
@@ -413,60 +382,22 @@ function inlineAssets(projectPath) {
     });
 }
 
-async function packageFiles (projectPath) {
+async function packageFiles(projectPath) {
     return new Promise((resolve, reject) => {
         (async function () {
             console.log('✔️ Packaging files');
-            var indexLocation = path.resolve(projectPath, "index.html");
+            var lastLocation = path.resolve(projectPath, "last.js");
+            var lastOutputPath = path.resolve(__dirname, 'temp/out/' + "last.js");
 
-            var externFilesConfig = config.one_page.extern_files;
-
-            if (externFilesConfig.enabled) {
-                // Make a package folder with an assets folder
-                var packagePath = path.resolve(projectPath, 'package');
-                var assetsPath = path.resolve(packagePath, externFilesConfig.folder_name);
-
-                // Create the all the folders using the assets path and recursive creation
-                fs.mkdirSync(assetsPath, {recursive: true});
-
-                // Copy files to a new dir
-                for (const filename of externFiles) {
-                    fs.copyFileSync(path.resolve(projectPath, filename), path.resolve(assetsPath, filename));
-                }
-
-                // Make the changes to file paths in index.html as they can be in a folder
-                // or need a URL prefix for CDN purposes
-                var assetFilePrefix = externFilesConfig.external_url_prefix.length > 0 ? externFilesConfig.external_url_prefix + '/' : '';
-                assetFilePrefix += externFilesConfig.folder_name.length > 0 ? externFilesConfig.folder_name + '/' : '';
-
-                var indexContents = fs.readFileSync(indexLocation, 'utf-8');
-
-                for (const filename of externFiles) {
-                    indexContents = indexContents.replace(
-                        '<script src="' + filename + '"></script>',
-                        '<script src="' + assetFilePrefix + filename + '"></script>'
-                    );
-                }
-                fs.writeFileSync(indexLocation, indexContents);
-                fs.copyFileSync(indexLocation, path.resolve(packagePath, 'index.html'));
-
-                // Zip the package folder contents
-                var zipOutputPath = path.resolve(__dirname, 'temp/out/' + config.playcanvas.name + '.zip');
-                await shared.zipProject(packagePath, zipOutputPath);
-
-                resolve(zipOutputPath);
-            } else {
-                var indexOutputPath = path.resolve(__dirname, 'temp/out/' + config.playcanvas.name + '.html');
-                if (!fs.existsSync(path.dirname(indexOutputPath))) {
-                    fs.mkdirSync(path.dirname(indexOutputPath), {
-                        recursive: true
-                    });
-                }
-
-                fs.copyFileSync(indexLocation, indexOutputPath);
-
-                resolve(indexOutputPath);
+            if (!fs.existsSync(path.dirname(lastOutputPath))) {
+                fs.mkdirSync(path.dirname(lastOutputPath), {
+                    recursive: true
+                });
             }
+
+            fs.copyFileSync(lastLocation, lastOutputPath);
+
+            resolve(lastOutputPath);
         })()
     });
 }
@@ -475,7 +406,7 @@ async function packageFiles (projectPath) {
 // Force not to concatenate scripts as they need to be inlined
 config.playcanvas.scripts_concatenate = false;
 shared.downloadProject(config, "temp/downloads")
-    .then((zipLocation) => shared.unzipProject(zipLocation, 'contents') )
+    .then((zipLocation) => shared.unzipProject(zipLocation, 'contents'))
     .then(inlineAssets)
     .then(packageFiles)
     .then(outputHtml => console.log("Success", outputHtml))
