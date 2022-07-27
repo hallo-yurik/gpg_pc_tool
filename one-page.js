@@ -330,8 +330,7 @@ function inlineAssets(projectPath) {
                     // Add library lz4.js.
                     // Check if "temp/out" exists (or create it).
                     // Write file to "temp/out".
-
-
+                    
                     var filepath = path.resolve(projectPath, 'playcanvas-stable.min.js');
                     var fileContent = fs.readFileSync(filepath, 'utf-8');
                     var compressedArray = lz4.encode(fileContent);
@@ -368,6 +367,10 @@ function inlineAssets(projectPath) {
                     var filepath = path.resolve(projectPath, url);
 
                     if (!fs.existsSync(filepath)) {
+                        continue;
+                    }
+
+                    if (url === "playcanvas-stable.min.js") {
                         continue;
                     }
 
