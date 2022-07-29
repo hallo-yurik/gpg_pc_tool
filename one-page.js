@@ -321,6 +321,18 @@ function inlineAssets(projectPath) {
 
             // 9. Compress the engine file with lz4
             (function () {
+                var filepath = path.resolve(__dirname, 'engine/', 'playcanvas-stable.min.js');
+                const finalDirectoryPath = path.resolve(__dirname, 'temp/out')
+                const finalEnginePath = path.resolve(finalDirectoryPath, "playcanvas-stable.min.js")
+
+                if (!fs.statSync(finalDirectoryPath, {throwIfNoEntry: false})?.isDirectory?.()) {
+                    fs.mkdirSync(finalDirectoryPath, {
+                        recursive: true
+                    });
+                }
+
+                fs.copyFileSync(filepath, finalEnginePath);
+
                 if (config.one_page.compress_engine) {
                     addLibraryFile('lz4.js');
 
@@ -330,8 +342,6 @@ function inlineAssets(projectPath) {
                     // Add library lz4.js.
                     // Check if "temp/out" exists (or create it).
                     // Write file to "temp/out".
-                    
-                    var filepath = path.resolve(projectPath, 'playcanvas-stable.min.js');
                     var fileContent = fs.readFileSync(filepath, 'utf-8');
                     var compressedArray = lz4.encode(fileContent);
 
@@ -339,11 +349,8 @@ function inlineAssets(projectPath) {
 
                     var wrapperCode = '!function(){var e=require("lz4"),r=require("buffer").Buffer,o=new r("[code]","base64"),c=e.decode(o);var a=document.createElement("script");a.async=!1,a.innerText=c,document.head.insertBefore(a,document.head.children[3])}();';
                     wrapperCode = wrapperCode.replace('[code]', fileContent);
-                    fs.writeFileSync(filepath, wrapperCode);
-                } else {
-                    // TODO
-                    // Check if "temp/out" exists (or create it).
-                    // Copy engine from "engine/playcanvas-stable.min.js" to "temp/out/playcanvas-stable.min.js".
+
+                    fs.writeFileSync(finalEnginePath, wrapperCode);
                 }
             })();
 
@@ -403,7 +410,7 @@ async function packageFiles(projectPath) {
             var lastLocation = path.resolve(projectPath, "last.js");
             var lastOutputPath = path.resolve(__dirname, 'temp/out/' + "last.js");
 
-            if (!fs.statSync(path.resolve(__dirname, 'temp/out')).isDirectory()) {
+            if (!fs.statSync(path.resolve(__dirname, 'temp/out'), {throwIfNoEntry: false})?.isDirectory?.()) {
                 fs.mkdirSync(path.dirname(lastOutputPath), {
                     recursive: true
                 });
