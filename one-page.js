@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 const fs = require('fs')
 const path = require('path')
 const base64js = require('base64-js');
@@ -5,14 +6,16 @@ const {minify} = require('terser');
 const btoa = require('btoa');
 const replaceString = require('replace-string');
 const lz4 = require('lz4');
+const appRoot = require('app-root-path');
 
 const shared = require('./shared');
 
+const sceneName = process.argv[2]
+
 const config = shared.readConfig();
 
-var externFiles = [];
-
 function inlineAssets(projectPath) {
+    console.log(projectPath)
     return new Promise((resolve, reject) => {
         (async function () {
             var indexLocation = path.resolve(projectPath, "index.html");
@@ -321,8 +324,8 @@ function inlineAssets(projectPath) {
 
             // 9. Compress the engine file with lz4
             (function () {
-                var filepath = path.resolve(__dirname, 'engine/', 'playcanvas-stable.min.js');
-                const finalDirectoryPath = path.resolve(__dirname, 'temp/out')
+                var filepath = path.resolve(appRoot.path, `pc_build/${sceneName}/source/playcanvas-stable.min.js`);
+                const finalDirectoryPath = path.resolve(appRoot.path, `pc_build/${sceneName}/out`)
                 const finalEnginePath = path.resolve(finalDirectoryPath, "playcanvas-stable.min.js")
 
                 if (!fs.statSync(finalDirectoryPath, {throwIfNoEntry: false})?.isDirectory?.()) {
@@ -401,9 +404,9 @@ async function packageFiles(projectPath) {
         (async function () {
             console.log('✔️ Packaging files');
             var lastLocation = path.resolve(projectPath, "last.js");
-            var lastOutputPath = path.resolve(__dirname, 'temp/out/' + "last.js");
+            var lastOutputPath = path.resolve(appRoot.path, `pc_build/${sceneName}/out/last.js`);
 
-            if (!fs.statSync(path.resolve(__dirname, 'temp/out'), {throwIfNoEntry: false})?.isDirectory?.()) {
+            if (!fs.statSync(path.resolve(appRoot.path, `pc_build/${sceneName}/out`), {throwIfNoEntry: false})?.isDirectory?.()) {
                 fs.mkdirSync(path.dirname(lastOutputPath), {
                     recursive: true
                 });
@@ -419,7 +422,7 @@ async function packageFiles(projectPath) {
 
 // Force not to concatenate scripts as they need to be inlined
 config.playcanvas.scripts_concatenate = false;
-shared.downloadProject(config, "temp/downloads")
+shared.downloadProject(config, `pc_build/${sceneName}/downloads`)
     .then((zipLocation) => shared.unzipProject(zipLocation, 'contents'))
     .then(inlineAssets)
     .then(packageFiles)
