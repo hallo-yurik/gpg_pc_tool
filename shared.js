@@ -1,15 +1,11 @@
 const fetch = require('node-fetch')
-const dotenv = require('dotenv')
 const fs = require('fs')
 const path = require('path')
 const Zip = require('adm-zip');
 
-
 function readConfig() {
-    const env = dotenv.config().parsed;
     const configStr = fs.readFileSync('config.json', 'utf-8');
     const config = JSON.parse(configStr);
-    config.authToken = env['AUTH_TOKEN'];
 
     // Add defaults if they don't exist
     config.csp = config.csp || {};
