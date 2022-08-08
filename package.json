@@ -1,15 +1,12 @@
 {
-  "name": "rest-api-tools",
+  "name": "gpg-pc-builder",
   "version": "1.0.0",
-  "description": "A suite of node scripts to use the PlayCanvas REST API",
+  "description": "",
   "scripts": {
-    "download": "node download-project.js",
-    "archive": "node archive-project.js",
-    "archive-all": "node archive-project-all.js",
-    "test-one-page": "node tests/test-one-page.js",
     "one-page": "node one-page.js"
   },
-  "author": "support@playcanvas.com",
+  "main": "one-page.js",
+  "author": "Yurii Trach",
   "license": "MIT",
   "dependencies": {
     "adm-zip": "^0.4.14",

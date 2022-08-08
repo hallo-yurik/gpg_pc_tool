@@ -337,12 +337,8 @@ function inlineAssets(projectPath) {
                     addLibraryFile('lz4.js');
 
                     console.log("↪️ Compressing the engine file");
-                    // TODO
-                    // Get file from "engine/playcanvas-stable.min.js".
-                    // Add library lz4.js.
-                    // Check if "temp/out" exists (or create it).
-                    // Write file to "temp/out".
-                    var fileContent = fs.readFileSync(filepath, 'utf-8');
+
+                    var fileContent = fs.readFileSync(finalEnginePath, 'utf-8');
                     var compressedArray = lz4.encode(fileContent);
 
                     fileContent = Buffer.from(compressedArray).toString('base64');
@@ -350,7 +346,11 @@ function inlineAssets(projectPath) {
                     var wrapperCode = '!function(){var e=require("lz4"),r=require("buffer").Buffer,o=new r("[code]","base64"),c=e.decode(o);var a=document.createElement("script");a.async=!1,a.innerText=c,document.head.insertBefore(a,document.head.children[3])}();';
                     wrapperCode = wrapperCode.replace('[code]', fileContent);
 
-                    fs.writeFileSync(finalEnginePath, wrapperCode);
+                    var LzPath = path.resolve(projectPath, "lz4.js");
+                    var LzFileContent = fs.readFileSync(LzPath, 'utf-8');
+
+                    fs.writeFileSync(finalEnginePath, LzFileContent);
+                    fs.appendFileSync(finalEnginePath, wrapperCode);
                 }
             })();
 
@@ -364,25 +364,18 @@ function inlineAssets(projectPath) {
                 fs.closeSync(fs.openSync(lastLocation, 'w'));
 
                 // If true, we will not embed the JS files
-                var externFilesConfig = config.one_page.extern_files;
                 var urlRegex = /<script src="(.*)"><\/script>/g;
                 var urlMatches = [...indexContents.matchAll(urlRegex)];
 
                 for (const element of urlMatches) {
                     var url = element[1];
-
                     var filepath = path.resolve(projectPath, url);
 
                     if (!fs.existsSync(filepath)) {
                         continue;
                     }
 
-                    if (url === "playcanvas-stable.min.js") {
-                        continue;
-                    }
-
-                    if (externFilesConfig.enabled) {
-                        externFiles.push(url);
+                    if (url === "playcanvas-stable.min.js" || url === "lz4.js") {
                         continue;
                     }
 
