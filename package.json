@@ -1,5 +1,5 @@
 {
-  "name": "gpg-pc-builder",
+  "name": "@gpg-web/playcanvas-playable-builder",
   "version": "1.0.7",
   "description": "",
   "scripts": {
