@@ -15,15 +15,16 @@ const sceneName = process.argv[2]
 const config = shared.readConfig();
 
 function inlineAssets(projectPath) {
-    console.log(projectPath)
     return new Promise((resolve, reject) => {
         (async function () {
             var indexLocation = path.resolve(projectPath, "index.html");
             var indexContents = fs.readFileSync(indexLocation, 'utf-8');
 
             var addPatchFile = function (filename) {
-                var patchLocation = path.resolve(projectPath, filename);
-                fs.copyFileSync('engine-patches/' + filename, patchLocation);
+                const enginePatches = path.resolve(__dirname, `engine-patches/${filename}`)
+                const patchLocation = path.resolve(projectPath, filename);
+
+                fs.copyFileSync(enginePatches, patchLocation);
                 indexContents = indexContents.replace(
                     '<script src="playcanvas-stable.min.js"></script>',
                     '<script src="playcanvas-stable.min.js"></script>\n    <script src="' + filename + '"></script>'
@@ -31,8 +32,10 @@ function inlineAssets(projectPath) {
             };
 
             var addLibraryFile = function (filename) {
+                const enginePatches = path.resolve(__dirname, `library-files/${filename}`)
                 var patchLocation = path.resolve(projectPath, filename);
-                fs.copyFileSync('library-files/' + filename, patchLocation);
+
+                fs.copyFileSync(enginePatches, patchLocation);
                 indexContents = indexContents.replace(
                     '<head>',
                     '<head>\n    <script src="' + filename + '"></script>'
