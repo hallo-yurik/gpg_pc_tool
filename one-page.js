@@ -307,18 +307,6 @@ function inlineAssets(projectPath) {
                 var location = path.resolve(projectPath, "__start__.js");
                 var contents = fs.readFileSync(location, 'utf-8');
 
-                var regex;
-
-                if (config.one_page.mraid_support) {
-                    // We don't want the height/width to be controlled by the original app resolution width and height
-                    // so we don't pass the height/width into resize canvas and let the canvas CSS on the HTML
-                    // handle the canvas dimensions.
-
-                    // Also remove use of marginTop as we are no longer using this
-                    regex = /reflow: function \(app, canvas\) {[\s\S]*?2000\);[\s\S]*?}[\s\S]*?}/
-                    contents = contents.replace(regex, "reflow: function(app, canvas){canvas.style.width=\"\",canvas.style.height=\"\",app.resizeCanvas()}");
-                }
-
                 fs.writeFileSync(location, contents);
             })();
 
@@ -418,7 +406,6 @@ async function packageFiles(projectPath) {
         })()
     });
 }
-
 
 // Force not to concatenate scripts as they need to be inlined
 config.playcanvas.scripts_concatenate = false;
