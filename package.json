@@ -3,9 +3,9 @@
   "version": "1.0.7",
   "description": "",
   "scripts": {
-    "one-page": "node one-page.js"
+    "one-page": "node playcanvas-playable-builder.js"
   },
-  "main": "one-page.js",
+  "main": "playcanvas-playable-builder.js",
   "author": "Playable Team",
   "license": "MIT",
   "dependencies": {
@@ -20,6 +20,6 @@
     "terser": "^5.5.1"
   },
   "bin": {
-    "one-page": "one-page.js"
+    "one-page": "playcanvas-playable-builder.js"
   }
 }
