@@ -3,7 +3,6 @@
   "version": "1.0.8",
   "description": "",
   "scripts": {
-    "one-page": "node playcanvas-playable-builder.js"
   },
   "main": "playcanvas-playable-builder.js",
   "author": "Playable Team",
@@ -20,6 +19,6 @@
     "terser": "^5.5.1"
   },
   "bin": {
-    "one-page": "playcanvas-playable-builder.js"
+    "playcanvas-playable-builder": "playcanvas-playable-builder.js"
   }
 }
