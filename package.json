@@ -1,6 +1,6 @@
 {
   "name": "@gpg-web/playcanvas-playable-builder",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "",
   "scripts": {
     "one-page": "node playcanvas-playable-builder.js"
